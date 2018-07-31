@@ -59,6 +59,7 @@ loop:	jal PrintMenu				# Prints the menu prompt and options
 #======================================================================================#
 
 PrintMenu:
+
 	la $a0, prompt				# load prompt into $a0 for printing
 	li $v0, 4				# syscall code for printing string
 	syscall					# print the string in $a0
@@ -83,6 +84,7 @@ PrintMenu:
 #======================================================================================#
 
 GetUserMenuInput:
+
 	li $v0, 12				# syscall code for reading a char
 	syscall					# read the char (it's now in $v0)
 	jr $ra					# return to caller with that value
@@ -92,6 +94,7 @@ GetUserMenuInput:
 #======================================================================================#
 
 Create:
+
 	li $v0, 9				# syscall code (9) for allocating memory	
 	li $a0, 12				# twelve bytes needed (3 words)
 	syscall					# let there be light	
@@ -121,10 +124,11 @@ Create:
 #======================================================================================#
 
 Display:
+
 	move $t0, $s1				# current = LinkedList.head
 
 	DisplayLoop:
-	beq $t0, $0, Stop			# check if we're at a null ($0) node
+	beq $t0, $0, ReturnDisplay		# check if we're at a null ($0) node
 	la $a0, nextNodeIs			# load "The next node is: " string
 	li $v0, 4				# syscall code for printing a string
 	syscall					# print the string
@@ -144,7 +148,7 @@ Display:
 	lw $t0, 8($t0)				# current = current->next
 	j DisplayLoop				# jump to loop
 
-	Stop:
+	ReturnDisplay:
 	jr $ra					# return to caller
 
 #======================================================================================#
@@ -152,8 +156,70 @@ Display:
 #======================================================================================#
 
 AddNode:
+
+	move $t0, $s1				# current = LinkedList.head
 	
-	jr $ra
+	la $a0, askForID			# prompt user to enter an ID
+	li $v0, 4				# syscall code for printing string
+	syscall					# print the prompt
+
+	li $v0, 5				# syscall code for reading int
+	syscall					# read the int (ID); it's now in $v0
+	move $t1, $v0				# store the ID in $t1 for use later
+
+	la $a0, askForValue			# prompt user to enter a value
+	li $v0, 4				# syscall code for printing string
+	syscall					# print the prompt
+
+	li $v0, 5				# syscall code for reading an int
+	syscall					# read the int (value); it's now in $v0
+	move $t2, $v0				# store the value in $t2 for use later
+
+	li $t3, 0				# to be used as a "previous" Node tracker (Node before current, initially nullptr)
+
+	FindLoop:
+
+	beq $t0, $0, ExitAddNodeLoop		# if current == nullptr, exit loop
+	lw $t4, 4($t0)				# t4 = current->value
+	slt $t4, $t2, $t4			# record whether valueToStore (t2) < valueInCurrent (t4), and store in t4
+	bne $t4, $0, ExitAddNodeLoop		# if t2 is in fact < t4, break
+
+	# Anything below (but before ExitAddNodeLoop) runs when valueToStore (t2) >= valueInCurrent (t4)
+	# Since we're storing nodes in ascending order by value, we need to move up one link in this case.
+	
+	move $t3, $t0				# previous = current
+	lw $t0, 8($t0)				# current = current->next
+	j FindLoop				# loop again
+
+	ExitAddNodeLoop:
+	
+	li $v0, 9				# syscall code (9) for allocating memory (new Node)	
+	li $a0, 12				# twelve bytes needed (3 words)
+	syscall					# let there be light	
+	
+	sw $t1, 0($v0)				# newNode->id = $t1 (user-entered id from before)
+	sw $t2, 4($v0)				# newNode->value = $t2 (user-entered value from before)	
+	sw $t0, 8($v0)				# newNode->next = current (either nullptr or a valid Node)
+
+	beq $t3, $0, PreviousWasNull		# if previous == nullptr, we're done w/ above	
+
+	sw $v0, 8($t3)				# else, previous->next = newNode (insertion elsewhere in the list)
+	jr $ra					# return to caller
+
+	PreviousWasNull:
+
+	# One last thing: we have to check if newNode is being entered before the head (it's the new head),
+	# in which case we need to update $s1, the current head, to point to newNode. This happens
+	# when previous == nullptr and valueToEnter < valueInCurrent. So now, we check if the 2nd condition
+	# caused us to terminate from the 'while' loop above (the other termination condition was current == nullptr).
+
+	bne $t4, $0, InsertionBeforeHead	# if newNode is the new head, update head
+	jr $ra					# else, return to caller			
+
+	InsertionBeforeHead:
+
+	move $s1, $v0				# head = newNode
+	jr $ra					# return to caller
 
 #======================================================================================#
 #	Removes the node with the given ID from this Linked List object		       #
