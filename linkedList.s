@@ -10,8 +10,12 @@
 	orTerminate: .asciiz "\nOr X to terminate: "
 	askForID: .asciiz "\n\n\tEnter the integer for the ID field: "
 	askForValue: .asciiz "\tEnter the node's data field: "
-	nextNodeIs: .asciiz "\n\nThe next node is:\t"
+	nextNodeIs: .asciiz "\n\n\tThe next node is:\t"
+	alreadyExists: .asciiz "\n\n\tA linked list already exists. Enter 'A' in the menu to add nodes to it or 'L' to display it.\n"
+	addingToNullHead: .asciiz "\n\n\tPlease create a linked list before attempting to insert a new node. See menu option 'C'.\n"
+	displayRequiresList: .asciiz "\n\n\tPlease create a linked list before attempting to print it. See menu option 'C'."
 	tab: .asciiz "\t"
+	newline: .asciiz "\n"
 
 .text
 
@@ -19,7 +23,7 @@
 #      Entry point of the program. Prompts user input and directs to menu options.     #
 #======================================================================================#
 
-main:
+main:	li $s1, 0				# head = nullptr
 	
 loop:	jal PrintMenu				# Prints the menu prompt and options
 	jal GetUserMenuInput			# Retrieves user input from console	
@@ -95,6 +99,8 @@ GetUserMenuInput:
 
 Create:
 
+	bne $s1, $0, AlreadyExists		# if head != nullptr, warn the user
+
 	li $v0, 9				# syscall code (9) for allocating memory	
 	li $a0, 12				# twelve bytes needed (3 words)
 	syscall					# let there be light	
@@ -119,16 +125,26 @@ Create:
 	
 	jr $ra					# return to caller
 
+	AlreadyExists:
+	
+	la $a0, alreadyExists			# load string for printing
+	li $v0, 4				# syscall code for printing string
+	syscall					# print that string
+	jr $ra					# and return
+	
+
 #======================================================================================#
 #	    Prints the contents of the Nodes in this Linked List object		       #
 #======================================================================================#
 
 Display:
 
+	beq $s1, $0, DisplayRequiresList	# code would work without this, but best to inform user
+
 	move $t0, $s1				# current = LinkedList.head
 
 	DisplayLoop:
-	beq $t0, $0, ReturnDisplay		# check if we're at a null ($0) node
+	beq $t0, $0, ReturnFromDisplay		# check if we're at a null ($0) node
 	la $a0, nextNodeIs			# load "The next node is: " string
 	li $v0, 4				# syscall code for printing a string
 	syscall					# print the string
@@ -137,7 +153,7 @@ Display:
 	lw $a0, 0($t0)				# load the ID into $a0 for printing
 	syscall					# print the ID
 	
-	li $v0, 4				# syscall code for printing string
+	li $v0, 4				# syscall code for printing a string
 	la $a0, tab				# load the tab into $a0 for printing
 	syscall					# print the tab
 
@@ -148,14 +164,25 @@ Display:
 	lw $t0, 8($t0)				# current = current->next
 	j DisplayLoop				# jump to loop
 
-	ReturnDisplay:
+	ReturnFromDisplay:
+	li $v0, 4				# syscall code for printing string
+	la $a0, newline				# load the newline
+	syscall					# print the newline
 	jr $ra					# return to caller
+
+	DisplayRequiresList:
+	la $a0, displayRequiresList		# load message for printing
+	li $v0, 4				# syscall code for printing string
+	syscall					# print it
+	j ReturnFromDisplay			# return
 
 #======================================================================================#
 #	Adds a new node to the existing Linked List in sorted fashion (by value)       #
 #======================================================================================#
 
 AddNode:
+
+	beq $s1, $0, AddingToNullHead		# reject insertion of a new node if head is nullptr	
 
 	move $t0, $s1				# current = LinkedList.head
 	
@@ -204,7 +231,7 @@ AddNode:
 	beq $t3, $0, PreviousWasNull		# if previous == nullptr, we're done w/ above	
 
 	sw $v0, 8($t3)				# else, previous->next = newNode (insertion elsewhere in the list)
-	jr $ra					# return to caller
+	j ReturnFromAddNode			# return to caller
 
 	PreviousWasNull:
 
@@ -214,12 +241,20 @@ AddNode:
 	# caused us to terminate from the 'while' loop above (the other termination condition was current == nullptr).
 
 	bne $t4, $0, InsertionBeforeHead	# if newNode is the new head, update head
-	jr $ra					# else, return to caller			
+	j ReturnFromAddNode			# else, return to caller			
 
 	InsertionBeforeHead:
 
 	move $s1, $v0				# head = newNode
+	
+	ReturnFromAddNode:
 	jr $ra					# return to caller
+
+	AddingToNullHead:
+	la $a0, addingToNullHead		# load message
+	li $v0, 4				# syscall code for printing string
+	syscall					# print it
+	j ReturnFromAddNode			# return
 
 #======================================================================================#
 #	Removes the node with the given ID from this Linked List object		       #
