@@ -11,11 +11,13 @@
 	askForID: .asciiz "\n\n\tEnter the integer for the ID field: "
 	askForValue: .asciiz "\tEnter the node's data field: "
 	nextNodeIs: .asciiz "\n\n\tThe next node is:\t"
+	foundNode: .asciiz "\n\tRequested node found:\t"
 	alreadyExists: .asciiz "\n\n\tA linked list already exists. Enter 'A' in the menu to add nodes to it or 'L' to display it.\n"
-	addingToNullHead: .asciiz "\n\n\tPlease create a linked list before attempting to insert a new node. See menu option 'C'.\n"
-	displayRequiresList: .asciiz "\n\n\tPlease create a linked list before attempting to print it. See menu option 'C'.\n"
-	noNodesToDelete: .asciiz "\n\n\tPlease create a linked list before attempting to delete a node. See menu option 'C'.\n"
-	nodeNotFound: .asciiz "\n\n\tThe requested node does not exist. See menu option 'L' to view the list.\n"
+	addingToNullHead: .asciiz "\n\n\tYou must create a linked list before you can insert a new node. See menu option 'C'.\n"
+	displayRequiresList: .asciiz "\n\n\tYou must create a linked list before you can print it. See menu option 'C'.\n"
+	searchRequiresList: .asciiz "\n\n\tYou must create a linked list before you can search for a node. See menu option 'C'.\n"
+	noNodesToDelete: .asciiz "\n\n\tYou must create a linked list before you can delete a node. See menu option 'C'.\n"
+	nodeNotFound: .asciiz "\n\n\tThe requested node was not found in the linked list.\n"
 	tab: .asciiz "\t"
 	newline: .asciiz "\n"
 
@@ -296,8 +298,7 @@ DeleteNode:
 	# request to delete [20]. Then [8]->next = [20]->next. Here,
 	# [20]->next == nullptr. And so on.	
 
-	# Memory leak here as well
-
+	# Memory leak here, courtesy of SPIM
 	lw $t3, 8($t0)				# current->next
 	sw $t3, 8($t2)				# previous->next = current->next
 	jr $ra					# return
@@ -305,7 +306,7 @@ DeleteNode:
 	DeleteHead:
 	
 	lw $t2, 8($t0)				# newHead = head->next (overwrite $t2, dont need it anymore)
-	move $s1, $t2				# head = newHead (memory leak, yuck... thanks, QtSPIM)
+	move $s1, $t2				# head = newHead (memory leak, yuck... thanks again, SPIM)
 	jr $ra
 
 	DeletionNodeNotFound:
@@ -327,8 +328,63 @@ DeleteNode:
 #======================================================================================#
 
 SearchID:
+
+	beq $s1, $0, NoNodeIDToFind		# if head == nullptr
+
+	move $t0, $s1				# current = head	
+
+	la $a0, askForID			# prompt user to enter an ID
+	li $v0, 4				# syscall code for printing string
+	syscall					# print the prompt
+
+	li $v0, 5				# syscall code for reading int
+	syscall					# read the int (ID); it's now in $v0
+	move $t1, $v0				# store the ID in $t1 for use later
+
+	FindID:
 	
-	jr $ra
+	beq $t0, $0, NodeNotFound		# if current == nullptr, we reached the end w/o finding anything
+	lw $t2, 0($t0)				# current->ID
+	beq $t1, $t2, NodeFound			# found the node
+	lw $t0, 8($t0)				# else, current = current->next
+	j FindID
+
+	NodeFound:
+
+	la $a0, foundNode			# load message
+	li $v0, 4				# syscall code for printing string
+	syscall					# print it
+
+	li $v0, 1				# syscall code for printing an int
+	lw $a0, 0($t0)				# load the ID into $a0 for printing
+	syscall					# print the ID
+	
+	li $v0, 4				# syscall code for printing a string
+	la $a0, tab				# load the tab into $a0 for printing
+	syscall					# print the tab
+
+	li $v0, 1				# syscall code for printing an int
+	lw $a0, 4($t0)				# load the value into $a0 for printing
+	syscall					# print the value
+
+	la $a0, newline				# load newline
+	li $v0, 4				# syscall code for printing string
+	syscall					# print the newline
+	jr $ra					# return
+
+	NodeNotFound:
+
+	la $a0, nodeNotFound			# load message
+	li $v0, 4				# syscall code for printing string
+	syscall					# print it
+	jr $ra					# return
+
+	NoNodeIDToFind:
+	
+	la $a0, searchRequiresList		# load message
+	li $v0, 4				# syscall code for printing string
+	syscall					# print it
+	jr $ra					# and return
 
 #======================================================================================#
 #	Searches for a Node with the specified value in this Linked List	       #
