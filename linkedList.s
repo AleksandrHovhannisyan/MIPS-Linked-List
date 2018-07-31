@@ -13,7 +13,9 @@
 	nextNodeIs: .asciiz "\n\n\tThe next node is:\t"
 	alreadyExists: .asciiz "\n\n\tA linked list already exists. Enter 'A' in the menu to add nodes to it or 'L' to display it.\n"
 	addingToNullHead: .asciiz "\n\n\tPlease create a linked list before attempting to insert a new node. See menu option 'C'.\n"
-	displayRequiresList: .asciiz "\n\n\tPlease create a linked list before attempting to print it. See menu option 'C'."
+	displayRequiresList: .asciiz "\n\n\tPlease create a linked list before attempting to print it. See menu option 'C'.\n"
+	noNodesToDelete: .asciiz "\n\n\tPlease create a linked list before attempting to delete a node. See menu option 'C'.\n"
+	nodeNotFound: .asciiz "\n\n\tThe requested node does not exist. See menu option 'L' to view the list.\n"
 	tab: .asciiz "\t"
 	newline: .asciiz "\n"
 
@@ -174,7 +176,7 @@ Display:
 	la $a0, displayRequiresList		# load message for printing
 	li $v0, 4				# syscall code for printing string
 	syscall					# print it
-	j ReturnFromDisplay			# return
+	jr $ra					# return to caller
 
 #======================================================================================#
 #	Adds a new node to the existing Linked List in sorted fashion (by value)       #
@@ -231,7 +233,7 @@ AddNode:
 	beq $t3, $0, PreviousWasNull		# if previous == nullptr, we're done w/ above	
 
 	sw $v0, 8($t3)				# else, previous->next = newNode (insertion elsewhere in the list)
-	j ReturnFromAddNode			# return to caller
+	jr $ra					# return to caller
 
 	PreviousWasNull:
 
@@ -246,15 +248,14 @@ AddNode:
 	InsertionBeforeHead:
 
 	move $s1, $v0				# head = newNode
-	
-	ReturnFromAddNode:
 	jr $ra					# return to caller
 
 	AddingToNullHead:
+
 	la $a0, addingToNullHead		# load message
 	li $v0, 4				# syscall code for printing string
 	syscall					# print it
-	j ReturnFromAddNode			# return
+	jr $ra					# return to caller
 
 #======================================================================================#
 #	Removes the node with the given ID from this Linked List object		       #
@@ -262,7 +263,64 @@ AddNode:
 
 DeleteNode:
 	
+	beq $s1, $0, NoNodesToDelete		# if head == nullptr, nothing to delete
+
+	move $t0, $s1				# current = LinkedList->head
+
+	la $a0, askForID			# prompt user to enter an ID
+	li $v0, 4				# syscall code for printing string
+	syscall					# print the prompt
+
+	li $v0, 5				# syscall code for reading int
+	syscall					# read the int (ID); it's now in $v0
+	move $t1, $v0				# store the ID in $t1 for use later
+	
+	li $t2, 0				# previous = nullptr (to be used later in deleting)
+
+	FindNodeToDelete:	
+
+	beq $t0, $0, DeletionNodeNotFound	# if current == nullptr, return
+	lw $t3, 0($t0)				# current->ID
+	beq $t1, $t3, NodeFoundForDeletion	# else, branch if current->ID == $t1
+	move $t2, $t0				# if it doesn't, previous = current
+	lw $t0, 8($t0)				# if it doesn't, current = current->next
+	j FindNodeToDelete			# and loop	
+
+	NodeFoundForDeletion:
+		
+	beq $t2, $0, DeleteHead			# if previous == nullptr, then we're deleting the head
+	
+	# Otherwise, we're not deleting the head. In that case,
+	# it doesn't matter what we're deleting; all we need to do
+	# is reconnect the broken links. Consider [5]-[8]-[20] and a
+	# request to delete [20]. Then [8]->next = [20]->next. Here,
+	# [20]->next == nullptr. And so on.	
+
+	# Memory leak here as well
+
+	lw $t3, 8($t0)				# current->next
+	sw $t3, 8($t2)				# previous->next = current->next
+	jr $ra					# return
+
+	DeleteHead:
+	
+	lw $t2, 8($t0)				# newHead = head->next (overwrite $t2, dont need it anymore)
+	move $s1, $t2				# head = newHead (memory leak, yuck... thanks, QtSPIM)
 	jr $ra
+
+	DeletionNodeNotFound:
+
+	la $a0, nodeNotFound			# load message
+	li $v0, 4				# syscall code for printing string
+	syscall					# print it
+	jr $ra					# return to caller
+
+	NoNodesToDelete:
+
+	la $a0, noNodesToDelete			# load message
+	li $v0, 4				# syscall code for printing string
+	syscall					# print it
+	jr $ra					# and return
 
 #======================================================================================#
 #	Searches for a Node with the specified ID in this Linked List		       #
