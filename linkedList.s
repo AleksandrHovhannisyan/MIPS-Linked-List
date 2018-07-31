@@ -1,3 +1,21 @@
+#=======================================================================================================================#
+#															#
+#	CDA3101 Programming Assignment 3: MIPS Linked List Implementation						#
+#	Author: Aleksandr Hovhannisyan											#
+#	Instructor: Dr. Cheryl Resch											#
+#															#
+#	This source file provides a full implementation of a MIPS linked list, which consists of a series of Node	#
+#	objects linked to each other via pointers. Nodes are inserted into the list in ascending order by value,	#
+#	and all Nodes are guaranteed to have a unique ID.								#
+#															#
+#	Due to limitations with the SPIM simulator, the program cannot deallocate any heap memory that it allocates.	#
+#	Thus, the program does produce memory leaks. I also chose not to reuse redundant code via procedure calls.	#
+#	Admittedly, this significantly increases the size of the source code. At the same time, however, it reduces	#
+#	the call stack overhead.											#
+#															#
+#=======================================================================================================================#
+
+
 .data
 
 	prompt: .asciiz "\nSpecify an action to take for the linked list:"
@@ -457,17 +475,23 @@ SearchValue:
 	li $v0, 5				# syscall code for reading int
 	syscall					# read the int (val); it's now in $v0
 	move $t1, $v0				# store the val in $t1 for use later
+	li $t3, 0				# to be used as a flag variable later; see NodeValFound
 
 	FindValue:
 	
-	beq $t0, $0, NodeValNotFound		# if current == nullptr, we reached the end w/o finding anything
+	beq $t0, $0, Done			# if current == nullptr, exit the loop
 	lw $t2, 4($t0)				# current->value
 	beq $t1, $t2, NodeValFound		# found the node
-	lw $t0, 8($t0)				# else, current = current->next
-	j FindID
+	lw $t0, 8($t0)				# if not a match, current = current->next
+	j FindValue				# loop
+
+	Done:
+	beq $t3, $0, NodeValNotFound		# if the $t3 flag is zero, then we never found a node
+	jr $ra					# otherwise, just return
 
 	NodeValFound:
 
+	li $t3, 1				# flag for found
 	la $a0, foundNode			# load message
 	li $v0, 4				# syscall code for printing string
 	syscall					# print it
@@ -487,7 +511,8 @@ SearchValue:
 	la $a0, newline				# load newline
 	li $v0, 4				# syscall code for printing string
 	syscall					# print the newline
-	jr $ra					# return
+	lw $t0, 8($t0)				# get the next node
+	j FindValue				# loop
 
 	NodeValNotFound:
 
@@ -504,7 +529,7 @@ SearchValue:
 	jr $ra					# and return
 
 #======================================================================================#
-#			Terminates the program entirely				       #
+#			Terminates the program entirely.			       #
 #======================================================================================#
 
 Exit:
