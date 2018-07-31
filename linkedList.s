@@ -18,6 +18,7 @@
 	searchRequiresList: .asciiz "\n\n\tYou must create a linked list before you can search for a node. See menu option 'C'.\n"
 	noNodesToDelete: .asciiz "\n\n\tYou must create a linked list before you can delete a node. See menu option 'C'.\n"
 	nodeNotFound: .asciiz "\n\n\tThe requested node was not found in the linked list.\n"
+	nodeAlreadyExists: .asciiz "\n\tThe node with the requested ID already exists in the linked list.\n"
 	tab: .asciiz "\t"
 	newline: .asciiz "\n"
 
@@ -63,7 +64,7 @@ loop:	jal PrintMenu				# Prints the menu prompt and options
 
 
 #======================================================================================#
-#			Prints the menu options to the console	          	       #
+#			Prints the menu options to the console.	          	       #
 #======================================================================================#
 
 PrintMenu:
@@ -88,7 +89,7 @@ PrintMenu:
 	jr $ra
 
 #======================================================================================#
-#	Retrieves the user's menu input, stored in the $v0 register		       #
+#	     Retrieves the user's menu input, stored in the $v0 register.	       #
 #======================================================================================#
 
 GetUserMenuInput:
@@ -98,7 +99,7 @@ GetUserMenuInput:
 	jr $ra					# return to caller with that value
 
 #======================================================================================#
-#	Creates a new Linked List object, returning the address of the head node       #
+#	Creates a new Linked List object, returning the address of the head node.      #
 #======================================================================================#
 
 Create:
@@ -138,7 +139,7 @@ Create:
 	
 
 #======================================================================================#
-#	    Prints the contents of the Nodes in this Linked List object		       #
+#	    Prints the contents of the Nodes in this Linked List object.	       #
 #======================================================================================#
 
 Display:
@@ -180,8 +181,33 @@ Display:
 	syscall					# print it
 	jr $ra					# return to caller
 
+
 #======================================================================================#
-#	Adds a new node to the existing Linked List in sorted fashion (by value)       #
+#		Returns 1 if the given ID is unique and 0 otherwise.      	       #
+#======================================================================================#
+
+IsUniqueID:
+
+	move $t0, $s1				# current = head
+
+	CheckNodes:
+	beq $t0, $0, UniqueID			# if current == nullptr, ID is unique
+	lw $t1, 0($t0)				# current->ID
+	beq $a0, $t1, NotUnique			# break
+	lw $t0, 8($t0)				# else, current = current->next
+	j CheckNodes				# loop
+
+	UniqueID:
+	li $v0, 1				# if we reach this, ID is unique
+	jr $ra					# and return
+
+	NotUnique:
+	li $v0, 0				# false
+	jr $ra					# return
+
+
+#======================================================================================#
+#	Adds a new node to the existing Linked List in sorted fashion (by value).      #
 #======================================================================================#
 
 AddNode:
@@ -197,6 +223,22 @@ AddNode:
 	li $v0, 5				# syscall code for reading int
 	syscall					# read the int (ID); it's now in $v0
 	move $t1, $v0				# store the ID in $t1 for use later
+
+	addi $sp, $sp, -12			# stack frame for three words
+	sw $t0, 0($sp)				# store current Node
+	sw $t1, 4($sp)				# store user's entered ID
+	sw $ra, 8($sp)				# store return address
+	move $a0, $t1				# load ID argument for function call
+	jal IsUniqueID				# check if the ID is unique; answer in $v0 (1 = unique)
+
+	lw $t0, 0($sp)
+	lw $t1, 4($sp)
+	lw $ra, 8($sp)
+	addi $sp, $sp, 12
+
+	beq $v0, $0, CreatingDuplicateNode	# not unique ID
+
+	# Otherwise, unique ID
 
 	la $a0, askForValue			# prompt user to enter a value
 	li $v0, 4				# syscall code for printing string
@@ -259,8 +301,15 @@ AddNode:
 	syscall					# print it
 	jr $ra					# return to caller
 
+	CreatingDuplicateNode:
+	
+	la $a0, nodeAlreadyExists		# load message
+	li $v0, 4				# syscall code for printing string
+	syscall					# print it
+	jr $ra					# return to caller
+	
 #======================================================================================#
-#	Removes the node with the given ID from this Linked List object		       #
+#	Removes the node with the given ID from this Linked List object.	       #
 #======================================================================================#
 
 DeleteNode:
@@ -324,7 +373,7 @@ DeleteNode:
 	jr $ra					# and return
 
 #======================================================================================#
-#	Searches for a Node with the specified ID in this Linked List		       #
+#	Searches for a Node with the specified ID in this Linked List.		       #
 #======================================================================================#
 
 SearchID:
@@ -343,13 +392,13 @@ SearchID:
 
 	FindID:
 	
-	beq $t0, $0, NodeNotFound		# if current == nullptr, we reached the end w/o finding anything
+	beq $t0, $0, NodeIDNotFound		# if current == nullptr, we reached the end w/o finding anything
 	lw $t2, 0($t0)				# current->ID
-	beq $t1, $t2, NodeFound			# found the node
+	beq $t1, $t2, NodeIDFound		# found the node
 	lw $t0, 8($t0)				# else, current = current->next
 	j FindID
 
-	NodeFound:
+	NodeIDFound:
 
 	la $a0, foundNode			# load message
 	li $v0, 4				# syscall code for printing string
@@ -372,7 +421,7 @@ SearchID:
 	syscall					# print the newline
 	jr $ra					# return
 
-	NodeNotFound:
+	NodeIDNotFound:
 
 	la $a0, nodeNotFound			# load message
 	li $v0, 4				# syscall code for printing string
@@ -387,12 +436,72 @@ SearchID:
 	jr $ra					# and return
 
 #======================================================================================#
-#	Searches for a Node with the specified value in this Linked List	       #
+#	Searches for a Node with the specified value in this Linked List.	       #
 #======================================================================================#
 
 SearchValue:
 	
-	jr $ra
+	beq $s1, $0, NoNodeValToFind		# if head == nullptr
+
+	move $t0, $s1				# current = head	
+
+	la $a0, newline				# load newline
+	li $v0, 4				# syscall code for printing string
+	syscall					# print it
+	syscall					# again
+
+	la $a0, askForValue			# prompt user to enter an ID
+	li $v0, 4				# syscall code for printing string
+	syscall					# print the prompt
+
+	li $v0, 5				# syscall code for reading int
+	syscall					# read the int (val); it's now in $v0
+	move $t1, $v0				# store the val in $t1 for use later
+
+	FindValue:
+	
+	beq $t0, $0, NodeValNotFound		# if current == nullptr, we reached the end w/o finding anything
+	lw $t2, 4($t0)				# current->value
+	beq $t1, $t2, NodeValFound		# found the node
+	lw $t0, 8($t0)				# else, current = current->next
+	j FindID
+
+	NodeValFound:
+
+	la $a0, foundNode			# load message
+	li $v0, 4				# syscall code for printing string
+	syscall					# print it
+
+	li $v0, 1				# syscall code for printing an int
+	lw $a0, 0($t0)				# load the ID into $a0 for printing
+	syscall					# print the ID
+	
+	li $v0, 4				# syscall code for printing a string
+	la $a0, tab				# load the tab into $a0 for printing
+	syscall					# print the tab
+
+	li $v0, 1				# syscall code for printing an int
+	lw $a0, 4($t0)				# load the value into $a0 for printing
+	syscall					# print the value
+
+	la $a0, newline				# load newline
+	li $v0, 4				# syscall code for printing string
+	syscall					# print the newline
+	jr $ra					# return
+
+	NodeValNotFound:
+
+	la $a0, nodeNotFound			# load message
+	li $v0, 4				# syscall code for printing string
+	syscall					# print it
+	jr $ra					# return
+
+	NoNodeValToFind:
+	
+	la $a0, searchRequiresList		# load message
+	li $v0, 4				# syscall code for printing string
+	syscall					# print it
+	jr $ra					# and return
 
 #======================================================================================#
 #			Terminates the program entirely				       #
