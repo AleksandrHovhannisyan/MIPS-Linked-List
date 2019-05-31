@@ -10,11 +10,11 @@ to make the code easier to follow/decipher.
 Known drawback: because SPIM only supports the allocation of dynamic memory but does not support the deallocation of said memory,
 this program inevitably runs into memory leaks when nodes are created and subsequently "deleted." 
 
-### Sample output
+### Demonstration
 
-Here's a brief example going through some of the menu interactions:
+Here's a brief demo going through some of the menu interactions:
 
-![](screenshots/example.PNG)
+![](screenshots/demo.gif)
 
 ### Running
 Be sure to download the [QtSPIM](http://spimsimulator.sourceforge.net/) simulator. Then, simply download the source file, 
