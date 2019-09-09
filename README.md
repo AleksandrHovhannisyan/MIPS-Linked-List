@@ -1,7 +1,5 @@
 # MIPS Linked List Implementation
 
-**Author**: Aleksandr Hovhannisyan
-
 **Course**: CDA3101 Intro to Computer Organization (@ the University of Florida)
 
 This source code provides a full implementation of a MIPS assembly linked list, complete with a command-line menu for user input. Ample inline comments are provided 
